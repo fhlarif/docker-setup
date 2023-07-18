@@ -1,0 +1,86 @@
+version: "3.9"
+
+services:
+
+  nginx:
+    build:
+      context: .
+      dockerfile: DockerfileNginx
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    networks:
+      - internal
+    volumes:
+      - ./project/:/var/www/
+
+  php:
+    build:
+      context: .
+      dockerfile: DockerfilePHP
+    networks:
+      - internal
+    user: "1000:1000"
+    volumes:
+      - ./project/:/var/www/
+      - ./project/vendor:/var/www/vendor
+
+  node:
+    build:
+      context: .
+      dockerfile: DockerfileNode
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./project/:/var/www
+      - node_modules:/var/www/node_modules
+
+  mongodb:
+    image: mongo
+    env_file:
+      - ./project/.env
+    restart: unless-stopped
+    ports:
+      - ${DB_PORT:-27017}:27017
+    volumes:
+      - ./mongo:/data/db
+    networks:
+      - internal
+
+  redis:
+    image: redis:alpine
+    env_file:
+      - ./project/.env
+    restart: unless-stopped
+    ports:
+      - ${REDIS_PORT:-6379}:6379
+    volumes:
+      - redis:/var/lib/redis
+    networks:
+      - internal
+
+  mailpit:
+    image: axllent/mailpit
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  redis:
+  node_modules:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./project/node_modules

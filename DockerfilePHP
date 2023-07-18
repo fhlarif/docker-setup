@@ -1,0 +1,36 @@
+FROM php:8.1.20-fpm as stage1
+
+# Project
+COPY ./project/ /var/www/
+
+WORKDIR /var/www/
+
+RUN apt-get update && apt-get install -y \
+    # needed for extension
+    zip unzip \
+    # need for installing zip ext
+    libzip-dev \
+    # need for working with image
+    libfreetype-dev \
+    libjpeg62-turbo-dev \
+    libpng-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    # install extension
+    && docker-php-ext-install exif zip \
+    && docker-php-ext-install -j$(nproc) gd \
+    && mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    # mongodb and redis ext
+    && pecl install mongodb-1.15.2 redis-5.3.3 \
+    && docker-php-ext-enable redis mongodb \
+    && echo "extension=mongodb.so" > $PHP_INI_DIR/conf.d/mongodb.ini \
+    && apt-get -y autoremove \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# use composer image
+COPY --from=composer /usr/bin/composer /usr/bin/composer
+
+# run the command
+RUN composer install \
+    # then change the owner file to 1000
+    && chown -R 1000:1000 /var/www/vendor
